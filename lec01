@@ -1,0 +1,101 @@
+// 交差点の信号機（A/B直交）
+// Aの青(2s)→黄(0.5s)→(A赤にして)Bの青(2s)→黄(0.5s)→繰り返し
+// ※Aが青/黄のときBは赤、Bが青/黄のときAは赤。よって同時青は絶対に起きない。
+
+// --- ピン定義（必要なら変更OK） ---
+const int A_RED   = 4;
+const int A_YEL   = 3;
+const int A_GRN   = 2;
+
+const int B_RED   = 5;
+const int B_YEL   = 6;
+const int B_GRN   = 7;
+
+// --- 時間（ミリ秒） ---
+const unsigned long T_GREEN  = 2000; // 青 2秒
+const unsigned long T_YELLOW =  500; // 黄 0.5秒
+// 赤は相手側の青+黄の合計（= 2500ms）で十分確保される（安全側）
+
+enum Phase {
+  A_GREEN_PHASE,
+  A_YELLOW_PHASE,
+  B_GREEN_PHASE,
+  B_YELLOW_PHASE
+};
+
+Phase phase = A_GREEN_PHASE;
+unsigned long t0 = 0;
+
+void setA(bool r, bool y, bool g) {
+  digitalWrite(A_RED,   r ? HIGH : LOW);
+  digitalWrite(A_YEL,   y ? HIGH : LOW);
+  digitalWrite(A_GRN,   g ? HIGH : LOW);
+}
+
+void setB(bool r, bool y, bool g) {
+  digitalWrite(B_RED,   r ? HIGH : LOW);
+  digitalWrite(B_YEL,   y ? HIGH : LOW);
+  digitalWrite(B_GRN,   g ? HIGH : LOW);
+}
+
+void enterPhase(Phase p) {
+  phase = p;
+  t0 = millis();
+
+  switch (p) {
+    case A_GREEN_PHASE:
+      // A:青、B:赤
+      setA(false, false, true);
+      setB(true,  false, false);
+      break;
+
+    case A_YELLOW_PHASE:
+      // A:黄、B:赤（Aが青から停止へ移行）
+      setA(false, true,  false);
+      setB(true,  false, false);
+      break;
+
+    case B_GREEN_PHASE:
+      // B:青、A:赤
+      setA(true,  false, false);
+      setB(false, false, true);
+      break;
+
+    case B_YELLOW_PHASE:
+      // B:黄、A:赤（Bが青から停止へ移行）
+      setA(true,  false, false);
+      setB(false, true,  false);
+      break;
+  }
+}
+
+unsigned long phaseDuration(Phase p) {
+  if (p == A_GREEN_PHASE || p == B_GREEN_PHASE)  return T_GREEN;
+  if (p == A_YELLOW_PHASE || p == B_YELLOW_PHASE) return T_YELLOW;
+  return 0;
+}
+
+void setup() {
+  pinMode(A_RED, OUTPUT);
+  pinMode(A_YEL, OUTPUT);
+  pinMode(A_GRN, OUTPUT);
+  pinMode(B_RED, OUTPUT);
+  pinMode(B_YEL, OUTPUT);
+  pinMode(B_GRN, OUTPUT);
+
+  // 初期状態：A青、B赤
+  enterPhase(A_GREEN_PHASE);
+}
+
+void loop() {
+  unsigned long now = millis();
+  if (now - t0 >= phaseDuration(phase)) {
+    // 次の位相へ
+    switch (phase) {
+      case A_GREEN_PHASE:  enterPhase(A_YELLOW_PHASE); break;
+      case A_YELLOW_PHASE: enterPhase(B_GREEN_PHASE);  break;
+      case B_GREEN_PHASE:  enterPhase(B_YELLOW_PHASE); break;
+      case B_YELLOW_PHASE: enterPhase(A_GREEN_PHASE);  break;
+    }
+  }
+}
